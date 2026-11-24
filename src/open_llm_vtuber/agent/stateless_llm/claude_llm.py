@@ -1,9 +1,14 @@
 """Description: This file contains the implementation of the `AsyncLLM` class for Claude API.
 This class is responsible for handling asynchronous interaction with Claude API endpoints
 for language generation.
+
+[deskpet] 2026-11-24: brought up to the current models (adaptive thinking steered by `effort`,
+no sampling parameters, prompt caching, refusals) and the key may come from an environment
+variable instead of the config file. The desk pet itself uses the subclass in deskpet/pet_llm.py.
 """
 
 import json
+import os
 from typing import AsyncIterator, List, Dict, Any
 
 from loguru import logger
@@ -11,14 +16,21 @@ from anthropic import AsyncAnthropic, NOT_GIVEN
 
 from .stateless_llm_interface import StatelessLLMInterface
 
+_PLACEHOLDER_KEYS = ("", "YOUR API KEY HERE")
+KEEP_MESSAGES = 40  # of the conversation, sent along with each request
+TRIM_STEP = 20  # trimmed in steps, so the cached beginning stays the same for a while
+
 
 class AsyncLLM(StatelessLLMInterface):
     def __init__(
         self,
-        model: str = "claude-3-haiku-latest",
+        model: str = "claude-sonnet-5-5",
         base_url: str = None,
         llm_api_key: str = None,
         system: str = None,
+        effort: str = "low",
+        max_tokens: int = 4000,
+        api_key_env: str = "",
     ):
         """
         Initialize Claude LLM.
@@ -26,19 +38,45 @@ class AsyncLLM(StatelessLLMInterface):
         Args:
             model (str): Model name
             base_url (str): Base URL for Claude API
-            llm_api_key (str): Claude API key
+            llm_api_key (str): Claude API key; empty = read it from `api_key_env`
             system (str): System prompt
+            effort (str): how much the model thinks: low | medium | high | xhigh | max
+            max_tokens (int): cap for one reply (thinking counts towards it)
+            api_key_env (str): name of the environment variable that holds the key
         """
         self.model = model
         self.system = system
+        self.effort = effort or "low"
+        self.max_tokens = max_tokens or 4000
 
-        # Initialize Claude client
+        key = llm_api_key if (llm_api_key or "").strip() not in _PLACEHOLDER_KEYS else None
+        if key is None and api_key_env:
+            key = self._key_from_env(api_key_env)
+        self.has_key = bool(key)
+        # without a key the client is still built (requests then fail with an authentication error)
         self.client = AsyncAnthropic(
-            api_key=llm_api_key, base_url=base_url if base_url else None
+            api_key=key or "missing",
+            base_url=base_url if base_url else "https://api.anthropic.com",
+            max_retries=1,
+            timeout=45.0,
         )
 
-        logger.info(f"Initialized Claude AsyncLLM with model: {self.model}")
+        logger.info(f"Initialized Claude AsyncLLM with model: {self.model} (effort {self.effort})")
         logger.debug(f"Base URL: {base_url}")
+
+    @staticmethod
+    def _key_from_env(name: str) -> str | None:
+        value = os.environ.get(name, "")
+        if not value and os.name == "nt":
+            # set after Explorer started: not in the environment of what Explorer launches
+            try:
+                import winreg
+
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
+                    value = str(winreg.QueryValueEx(k, name)[0])
+            except OSError:
+                value = ""
+        return value.strip() or None
 
     def _convert_message_format(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Convert message format to Claude's expected format."""
@@ -79,7 +117,39 @@ class AsyncLLM(StatelessLLMInterface):
             return {"role": role, "content": new_content}
 
         # Handle plain text content or non-list content
-        return message
+        return {"role": message["role"], "content": message.get("content", "")}
+
+    def _prepare(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """The conversation as the API takes it: no system entries, not endlessly long, and
+        with a cache mark at the end of what was already there before the newest message."""
+        msgs = [
+            self._convert_message_format(m)
+            for m in messages
+            if m.get("role") in ("user", "assistant") and m.get("content")
+        ]
+        if len(msgs) > KEEP_MESSAGES + TRIM_STEP:
+            cut = ((len(msgs) - KEEP_MESSAGES) // TRIM_STEP) * TRIM_STEP
+            msgs = msgs[cut:]
+        while msgs and msgs[0]["role"] != "user":  # the API wants the user to speak first
+            msgs = msgs[1:]
+        if len(msgs) >= 2:
+            earlier = msgs[-2]
+            content = earlier["content"]
+            if isinstance(content, str):
+                content = [{"type": "text", "text": content}]
+            else:
+                content = [dict(b) for b in content]
+            if content and content[-1].get("type") in ("text", "image", "tool_result"):
+                content[-1] = {**content[-1], "cache_control": {"type": "ephemeral"}}
+                msgs[-2] = {"role": earlier["role"], "content": content}
+        return msgs
+
+    @staticmethod
+    def _system_blocks(system: str) -> list | str:
+        """The system prompt as one cached block (it is the same from turn to turn)."""
+        if not system:
+            return NOT_GIVEN
+        return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
 
     async def chat_completion(
         self,
@@ -109,21 +179,17 @@ class AsyncLLM(StatelessLLMInterface):
             - {"type": "error", "message": "..."}
         """
         try:
-            # Filter out system messages and convert message format
-            converted_messages = [
-                self._convert_message_format(msg)
-                for msg in messages
-                if msg["role"] != "system"
-            ]
+            converted_messages = self._prepare(messages)
 
-            logger.debug(f"Sending messages to Claude API: {converted_messages}")
+            logger.debug(f"Sending {len(converted_messages)} messages to Claude API")
             logger.debug(f"Tools provided: {tools}")
 
             async with self.client.messages.stream(
                 messages=converted_messages,
-                system=system if system else (self.system if self.system else ""),
+                system=self._system_blocks(system if system else self.system),
                 model=self.model,
-                max_tokens=1024,
+                max_tokens=self.max_tokens,
+                output_config={"effort": self.effort},
                 tools=tools if tools else NOT_GIVEN,
             ) as stream:
                 current_tool_call_info = None
@@ -140,9 +206,7 @@ class AsyncLLM(StatelessLLMInterface):
                         logger.debug(
                             f"Stream: content_block_start - Index: {event.index}, Type: {event.content_block.type}"
                         )
-                        if event.content_block.type == "text":
-                            pass  # Handled by text_delta
-                        elif event.content_block.type == "tool_use":
+                        if event.content_block.type == "tool_use":
                             current_tool_call_info = {
                                 "id": event.content_block.id,
                                 "name": event.content_block.name,
@@ -157,10 +221,8 @@ class AsyncLLM(StatelessLLMInterface):
                                 "type": "tool_use_start",
                                 "data": current_tool_call_info.copy(),
                             }
+                        # text is handled by text_delta; thinking blocks are not shown
                     elif event.type == "content_block_delta":
-                        logger.debug(
-                            f"Stream: content_block_delta - Index: {event.index}, Delta Type: {event.delta.type}"
-                        )
                         if event.delta.type == "text_delta":
                             yield {"type": "text_delta", "text": event.delta.text}
                         elif event.delta.type == "input_json_delta":
@@ -169,17 +231,11 @@ class AsyncLLM(StatelessLLMInterface):
                                 and event.index == current_tool_call_info["index"]
                             ):
                                 partial_json_accumulator += event.delta.partial_json
-                                logger.trace(
-                                    f"Stream: input_json_delta - Tool ID: {current_tool_call_info['id']}, Partial: {event.delta.partial_json}"
-                                )
                             else:
                                 logger.warning(
                                     f"Received input_json_delta but no active tool call matching index {event.index}"
                                 )
                     elif event.type == "content_block_stop":
-                        logger.debug(
-                            f"Stream: content_block_stop - Index: {event.index}"
-                        )
                         # Check if this stop corresponds to the active tool call
                         if (
                             current_tool_call_info
@@ -187,9 +243,6 @@ class AsyncLLM(StatelessLLMInterface):
                         ):
                             try:
                                 if not partial_json_accumulator.strip():
-                                    logger.warning(
-                                        f"Empty JSON input received for tool ID: {current_tool_call_info['id']}. Using empty object."
-                                    )
                                     tool_input = {}
                                 else:
                                     tool_input = json.loads(partial_json_accumulator)
@@ -215,13 +268,15 @@ class AsyncLLM(StatelessLLMInterface):
                                 current_tool_call_info = None
                                 partial_json_accumulator = ""
                     elif event.type == "message_delta":
-                        logger.debug(
-                            f"Stream: message_delta - Delta: {event.delta.model_dump(exclude_none=True)}, Usage: {event.usage}"
-                        )
+                        delta = event.delta.model_dump(exclude_none=True)
+                        if delta.get("stop_reason") == "refusal":
+                            # the model declined (HTTP 200, no exception): say so instead of going silent
+                            logger.warning("Claude declined to answer (stop_reason: refusal)")
+                            yield {"type": "error", "message": "The model declined to answer this."}
                         yield {
                             "type": "message_delta",
                             "data": {
-                                "delta": event.delta.model_dump(exclude_none=True),
+                                "delta": delta,
                                 "usage": event.usage.model_dump(),
                             },
                         }
@@ -229,11 +284,7 @@ class AsyncLLM(StatelessLLMInterface):
                         logger.debug("Stream: message_stop")
                         yield {"type": "message_stop"}
                         # No need to break here, the context manager handles the end
-                    elif event.type == "ping":
-                        logger.trace("Stream: ping")
-                        pass  # Ignore pings
-                    # Anthropic SDK might raise errors directly, or via event.type == 'error'
-                    # The outer try/except handles SDK-level errors.
+                    # pings and thinking deltas are ignored
 
         except Exception as e:
             logger.error(f"Claude API error occurred: {str(e)}")

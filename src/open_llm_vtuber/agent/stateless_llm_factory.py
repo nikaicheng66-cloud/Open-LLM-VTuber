@@ -68,11 +68,20 @@ class LLMFactory:
                 model_path=kwargs.get("model_path"),
             )
         elif llm_provider == "claude_llm":
-            return ClaudeLLM(
+            # [deskpet] Claude with the pet's tools, and the local model as backup
+            from ..deskpet.pet_llm import PetClaude
+
+            return PetClaude(
                 system=kwargs.get("system_prompt"),
                 base_url=kwargs.get("base_url"),
                 model=kwargs.get("model"),
                 llm_api_key=kwargs.get("llm_api_key"),
+                effort=kwargs.get("effort"),
+                max_tokens=kwargs.get("max_tokens"),
+                api_key_env=kwargs.get("api_key_env"),
+                fallback_model=kwargs.get("fallback_model"),
+                fallback_base_url=kwargs.get("fallback_base_url"),
+                thinking=kwargs.get("thinking"),
             )
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider}")

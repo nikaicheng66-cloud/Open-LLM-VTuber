@@ -80,13 +80,19 @@ class WebSocketServer:
         # It will be populated during the initialize method call
 
         # Add global CORS middleware
+        # [deskpet] only the pet's own windows (file:// Electron client, localhost web UI), not "*":
+        # with "*" any web page in the browser could drive the pet, and the pet can run commands.
+        from .deskpet.origin_guard import ALLOWED_ORIGIN_RE, OriginGuard
+
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origin_regex=ALLOWED_ORIGIN_RE.pattern,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
+        # [deskpet] CORS only hides responses; this refuses the request (and WebSocket) itself
+        self.app.add_middleware(OriginGuard)
 
         # Include routes, passing the context instance
         # The context will be populated during the initialize step
@@ -96,6 +102,37 @@ class WebSocketServer:
         self.app.include_router(
             init_webtool_routes(default_context_cache=self.default_context_cache),
         )
+        # [deskpet] Claude Code hooks / status endpoints, and the screen timeline
+        from .deskpet.hooks import router as deskpet_router
+        from .deskpet import screen as deskpet_screen
+
+        self.app.include_router(deskpet_router)
+        from .deskpet import audio_drop as deskpet_audio  # recordings dropped on her
+
+        self.app.include_router(deskpet_audio.router)
+        deskpet_screen.start()
+        # [deskpet] keep a few seconds of what the speakers play, to drop the mic hearing it
+        from .deskpet import echo_gate as deskpet_echo
+
+        deskpet_echo.start()
+
+        @self.app.on_event("startup")
+        async def _deskpet_start_wechat():  # only runs a worker while the feature is switched on
+            import asyncio
+
+            from .deskpet import wechat_link
+
+            wechat_link.start(asyncio.get_running_loop())
+
+        @self.app.on_event("shutdown")
+        async def _deskpet_stop_tasks():  # closing the pet stops any computer task still running
+            from .deskpet import claude_bridge
+
+            claude_bridge.stop_all()
+            from .deskpet import wechat_link
+
+            wechat_link.stop()
+            deskpet_audio.stop()
 
         # Initialize and include proxy routes if proxy is enabled
         system_config = config.system_config

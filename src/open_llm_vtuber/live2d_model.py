@@ -1,3 +1,4 @@
+import re
 import json
 import chardet
 from loguru import logger
@@ -50,6 +51,11 @@ class Live2dModel:
         }
         self.emo_str: str = " ".join([f"[{key}]," for key in self.emo_map.keys()])
         # emo_str is a string of the keys in the emoMap dictionary. The keys are enclosed in square brackets.
+        # [deskpet] optional actionMap: tag -> command (e.g. "wave": "pose:wave")
+        self.act_map: dict = {
+            k.lower(): v for k, v in self.model_info.get("actionMap", {}).items()
+        }
+        self.act_str: str = " ".join([f"[{key}]," for key in self.act_map.keys()])
         # example: `"[fear], [anger], [disgust], [sadness], [joy], [neutral], [surprise]"`
 
     def _load_file_content(self, file_path: str) -> str:
@@ -170,6 +176,40 @@ class Live2dModel:
                     break
             i += 1
         return expression_list
+
+    def extract_actions(self, str_to_check: str) -> list:
+        """[deskpet] Return the commands of all action tags found in the string, in order."""
+        found = []
+        lower = str_to_check.lower()
+        for m in re.finditer(r"\[([a-z_]+)\]", lower):
+            key = m.group(1)
+            if key in self.act_map:
+                found.append(self.act_map[key])
+                continue
+            # [deskpet] tags the model invents, e.g. [hide_top_right] / [walk_to_left]
+            m2 = re.fullmatch(r"(hide|walk)(?:_to)?_(top|bottom|center)?_?(left|right)?", key)
+            if m2 and (m2.group(2) or m2.group(3)):
+                place = "_".join(x for x in (m2.group(2), m2.group(3)) if x)
+                if m2.group(1) == "walk":
+                    found.append(f"walk:{place}")
+                else:
+                    # peek from the named left/right edge, else from the named top/bottom edge
+                    side = m2.group(3) or (m2.group(2) if m2.group(2) in ("top", "bottom") else "bottom")
+                    if place != side:
+                        found.append(f"walk:{place}")
+                    found.append(f"hide:{side}")
+        return found
+
+    def strip_tags(self, text: str) -> str:
+        """[deskpet] Remove emotion and action tags so they are not shown or spoken."""
+        keys = set(self.emo_map) | set(getattr(self, "act_map", {}))
+
+        def repl(m):
+            k = m.group(1).lower()
+            # known tags, and anything that looks like a made-up action tag (snake_case), are never shown/spoken
+            return "" if k in keys or "_" in k or k.isascii() else m.group(0)
+
+        return re.sub(r"\[([A-Za-z_]+)\]", repl, text).strip()
 
     def remove_emotion_keywords(self, target_str: str) -> str:
         """

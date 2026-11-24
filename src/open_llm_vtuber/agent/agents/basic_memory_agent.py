@@ -116,6 +116,17 @@ class BasicMemoryAgent(AgentInterface):
         self._llm = llm
         self.chat = self._chat_function_factory()
 
+    def _system_now(self) -> str:
+        """[deskpet] System prompt plus what the user asked her to remember (read fresh each turn)."""
+        try:
+            from ...deskpet import brain, cloud, memory
+
+            system = self._system + memory.prompt_block()
+            # a local chat model (llm_provider: 'ollama_llm') gets the old persona it was tuned on
+            return system if cloud.enabled else brain.local_system(system)
+        except Exception:
+            return self._system
+
     def set_system(self, system: str):
         """Set the system prompt."""
         logger.debug(f"Memory Agent: Setting system prompt: '''{system}'''")
@@ -299,7 +310,7 @@ class BasicMemoryAgent(AgentInterface):
         current_assistant_message_content = []
 
         while True:
-            stream = self._llm.chat_completion(messages, self._system, tools=tools)
+            stream = self._llm.chat_completion(messages, self._system_now(), tools=tools)
             pending_tool_calls.clear()
             current_assistant_message_content.clear()
 
@@ -409,20 +420,20 @@ class BasicMemoryAgent(AgentInterface):
         messages = initial_messages.copy()
         current_turn_text = ""
         pending_tool_calls: Union[List[ToolCallObject], List[Dict[str, Any]]] = []
-        current_system_prompt = self._system
+        current_system_prompt = self._system_now()
 
         while True:
             if self.prompt_mode_flag:
                 if self._mcp_prompt_string:
                     current_system_prompt = (
-                        f"{self._system}\n\n{self._mcp_prompt_string}"
+                        f"{self._system_now()}\n\n{self._mcp_prompt_string}"
                     )
                 else:
                     logger.warning("Prompt mode active but mcp_prompt_string is empty!")
-                    current_system_prompt = self._system
+                    current_system_prompt = self._system_now()
                 tools_for_api = None
             else:
-                current_system_prompt = self._system
+                current_system_prompt = self._system_now()
                 tools_for_api = tools
 
             stream = self._llm.chat_completion(
@@ -643,7 +654,7 @@ class BasicMemoryAgent(AgentInterface):
                 return
             else:
                 logger.info("Starting simple chat completion.")
-                token_stream = self._llm.chat_completion(messages, self._system)
+                token_stream = self._llm.chat_completion(messages, self._system_now())
                 complete_response = ""
                 async for event in token_stream:
                     text_chunk = ""

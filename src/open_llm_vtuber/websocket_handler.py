@@ -15,6 +15,7 @@ from .chat_group import (
 )
 from .message_handler import message_handler
 from .utils.stream_audio import prepare_audio_payload
+from .deskpet import quiet as deskpet_quiet
 from .chat_history_manager import (
     create_new_history,
     get_history,
@@ -370,6 +371,7 @@ class WebSocketHandler:
         self, websocket: WebSocket, client_uid: str, data: WSMessage
     ) -> None:
         """Handle conversation interruption"""
+        deskpet_quiet.drop(websocket)  # [deskpet] nor say later what was kept
         heard_response = data.get("text", "")
         context = self.client_contexts[client_uid]
         group = self.chat_group_manager.get_client_group(client_uid)

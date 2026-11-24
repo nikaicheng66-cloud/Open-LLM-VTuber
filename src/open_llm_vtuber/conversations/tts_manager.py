@@ -1,3 +1,4 @@
+import time
 import asyncio
 import json
 import re
@@ -11,6 +12,9 @@ from ..live2d_model import Live2dModel
 from ..tts.tts_interface import TTSInterface
 from ..utils.stream_audio import prepare_audio_payload
 from .types import WebSocketSend
+
+
+from ..deskpet import timing as deskpet_timing  # [deskpet]
 
 
 class TTSTaskManager:
@@ -106,6 +110,8 @@ class TTSTaskManager:
                 while self._next_sequence_to_send in buffered_payloads:
                     next_payload = buffered_payloads.pop(self._next_sequence_to_send)
                     await websocket_send(json.dumps(next_payload))
+                    if next_payload.get("audio"):
+                        deskpet_timing.mark("sent")  # [deskpet]
                     self._next_sequence_to_send += 1
 
                 self._payload_queue.task_done()
@@ -139,7 +145,10 @@ class TTSTaskManager:
         """Process TTS generation and queue the result for ordered delivery"""
         audio_file_path = None
         try:
+            deskpet_timing.mark("said")  # [deskpet] the first sentence is with the voice
+            synth_began = time.perf_counter()
             audio_file_path = await self._generate_audio(tts_engine, tts_text)
+            deskpet_timing.mark("voice", synthesis=time.perf_counter() - synth_began)
             payload = prepare_audio_payload(
                 audio_path=audio_file_path,
                 display_text=display_text,

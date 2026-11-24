@@ -187,8 +187,17 @@ class ClaudeConfig(StatelessLLMBaseConfig):
     """Configuration for OpenAI Official API."""
 
     base_url: str = Field("https://api.anthropic.com", alias="base_url")
-    llm_api_key: str = Field(..., alias="llm_api_key")
+    # [deskpet] the key may stay out of this file: leave it empty and name the variable that holds it
+    llm_api_key: str = Field("", alias="llm_api_key")
+    api_key_env: str = Field("", alias="api_key_env")
     model: str = Field(..., alias="model")
+    effort: Literal["low", "medium", "high", "xhigh", "max"] = Field("low", alias="effort")
+    max_tokens: int = Field(4000, alias="max_tokens")
+    # [deskpet] "auto": the model thinks first when it finds a sentence tricky; "off": never
+    thinking: Literal["auto", "off"] = Field("auto", alias="thinking")
+    # [deskpet] local model used while the API can't be reached (Ollama's OpenAI-style address)
+    fallback_model: str = Field("", alias="fallback_model")
+    fallback_base_url: str = Field("", alias="fallback_base_url")
     interrupt_method: Literal["system", "user"] = Field(
         "user", alias="interrupt_method"
     )
@@ -200,6 +209,27 @@ class ClaudeConfig(StatelessLLMBaseConfig):
         "llm_api_key": Description(en="API key for authentication", zh="API 认证密钥"),
         "model": Description(
             en="Name of the Claude model to use", zh="要使用的 Claude 模型名称"
+        ),
+        "api_key_env": Description(
+            en="Environment variable holding the API key (used when llm_api_key is empty)",
+            zh="存放 API 密钥的环境变量名（llm_api_key 留空时使用）",
+        ),
+        "effort": Description(
+            en="How much the model thinks before answering (low is fastest)",
+            zh="模型回答前思考的程度（low 最快）",
+        ),
+        "max_tokens": Description(
+            en="Upper limit of one reply, thinking included", zh="单次回复的上限（含思考）"
+        ),
+        "thinking": Description(
+            en="auto: think first when a sentence is tricky; off: never (steadier, a little slower on easy turns)",
+            zh="auto：遇到难判断的话先想一下；off：从不思考（更稳，简单的话略慢）",
+        ),
+        "fallback_model": Description(
+            en="Local model used while the API can't be reached", zh="API 连不上时使用的本地模型"
+        ),
+        "fallback_base_url": Description(
+            en="OpenAI-style address of the local model server", zh="本地模型服务的 OpenAI 兼容地址"
         ),
     }
 

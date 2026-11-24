@@ -1,0 +1,117 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "character_live2d.moc3",
+    "Textures": [
+      "character_live2d.8192/texture_00.png"
+    ],
+    "DisplayInfo": "character_live2d.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "normal",
+        "File": "expressions/normal.exp3.json"
+      },
+      {
+        "Name": "happy",
+        "File": "expressions/happy.exp3.json"
+      },
+      {
+        "Name": "surprised",
+        "File": "expressions/surprised.exp3.json"
+      },
+      {
+        "Name": "thinking",
+        "File": "expressions/thinking.exp3.json"
+      },
+      {
+        "Name": "sleepy",
+        "File": "expressions/sleepy.exp3.json"
+      },
+      {
+        "Name": "worried",
+        "File": "expressions/worried.exp3.json"
+      },
+      {
+        "Name": "sad",
+        "File": "expressions/sad.exp3.json"
+      },
+      {
+        "Name": "pout",
+        "File": "expressions/pout.exp3.json"
+      },
+      {
+        "Name": "shy",
+        "File": "expressions/shy.exp3.json"
+      },
+      {
+        "Name": "smug",
+        "File": "expressions/smug.exp3.json"
+      }
+    ],
+    "Motions": {
+      "Idle": [
+        {
+          "File": "motions/idle.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        }
+      ],
+      "Pose": [
+        {
+          "File": "motions/pose_wave.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        },
+        {
+          "File": "motions/pose_point.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        },
+        {
+          "File": "motions/pose_chin.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        },
+        {
+          "File": "motions/pose_cheer.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        },
+        {
+          "File": "motions/pose_reading.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        },
+        {
+          "File": "motions/pose_parasol.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        }
+      ],
+      "Walk": [
+        {
+          "File": "motions/walk.motion3.json",
+          "FadeInTime": 0.0,
+          "FadeOutTime": 0.0
+        }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ]
+}

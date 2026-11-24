@@ -10,6 +10,8 @@ class Actions:
     expressions: Optional[List[str] | List[int]] = None
     pictures: Optional[List[str]] = None
     sounds: Optional[List[str]] = None
+    # [deskpet] body actions such as "pose:wave" or "walk:left"
+    motions: Optional[List[str]] = None
 
     def to_dict(self) -> dict:
         """Convert Actions object to a dictionary for JSON serialization"""

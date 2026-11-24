@@ -95,6 +95,10 @@ async def handle_conversation_trigger(
                 )
             )
     else:
+        # [deskpet] the reply still being spoken, if any: for mic audio the client no longer
+        # interrupts it on its own (the sound may be the PC's speakers); the new turn stops it
+        # once the audio is confirmed to be the user
+        prev_task = current_conversation_tasks.get(client_uid)
         # Use client_uid as task key for individual conversations
         current_conversation_tasks[client_uid] = asyncio.create_task(
             process_single_conversation(
@@ -105,6 +109,7 @@ async def handle_conversation_trigger(
                 images=images,
                 session_emoji=session_emoji,
                 metadata=metadata,
+                prev_task=prev_task if msg_type == "mic-audio-end" else None,
             )
         )
 

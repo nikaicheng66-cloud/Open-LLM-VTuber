@@ -1,6 +1,6 @@
 # config_manager/tts.py
 from pydantic import ValidationInfo, Field, model_validator
-from typing import Literal, Optional, Dict, ClassVar
+from typing import List, Literal, Optional, Dict, ClassVar
 from .i18n import I18nMixin, Description
 
 CartesiaLanguages = Literal[
@@ -288,6 +288,15 @@ class GPTSoVITSConfig(I18nMixin):
     batch_size: str = Field(..., alias="batch_size")
     media_type: str = Field(..., alias="media_type")
     streaming_mode: str = Field(..., alias="streaming_mode")
+    # [deskpet] optional tuning
+    aux_ref_audio_paths: List[str] = Field(default_factory=list, alias="aux_ref_audio_paths")
+    speed_factor: float = Field(1.0, alias="speed_factor")
+    temperature: float = Field(1.0, alias="temperature")
+    top_k: int = Field(15, alias="top_k")
+    top_p: float = Field(1.0, alias="top_p")
+    repetition_penalty: float = Field(1.35, alias="repetition_penalty")
+    fragment_interval: float = Field(0.3, alias="fragment_interval")
+    seed: int = Field(-1, alias="seed")
 
     DESCRIPTIONS: ClassVar[Dict[str, Description]] = {
         "api_url": Description(

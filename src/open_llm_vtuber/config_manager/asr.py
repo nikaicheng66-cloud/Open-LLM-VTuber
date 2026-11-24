@@ -32,7 +32,7 @@ class FasterWhisperConfig(I18nMixin):
     download_root: str = Field(..., alias="download_root")
     language: Optional[str] = Field(None, alias="language")
     device: str = Field("auto", alias="device")
-    compute_type: Literal["int8", "float16", "float32"] = Field(
+    compute_type: Literal["int8", "int8_float16", "float16", "float32"] = Field(  # [deskpet] int8_float16 = low-VRAM GPU
         "int8", alias="compute_type"
     )
     prompt: str | None = Field(None, alias="prompt")

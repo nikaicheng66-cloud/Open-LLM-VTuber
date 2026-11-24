@@ -120,7 +120,12 @@ character_config:
       claude_llm:
         base_url: 'https://api.anthropic.com'
         llm_api_key: 'YOUR API KEY HERE'
-        model: 'claude-3-haiku-20240307'
+        model: 'claude-sonnet-5-5'
+        # api_key_env: 'ANTHROPIC_API_KEY' # read the key from this environment variable when llm_api_key is empty
+        # effort: 'low' # low | medium | high | xhigh | max
+        # max_tokens: 4000
+        # fallback_model: '' # local model used while the API can't be reached (deskpet)
+        # fallback_base_url: 'http://localhost:11434/v1'
 
       llama_cpp_llm:
         model_path: '<path-to-gguf-model-file>'

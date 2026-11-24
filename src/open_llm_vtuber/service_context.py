@@ -457,6 +457,9 @@ class ServiceContext:
             if prompt_name == "live2d_expression_prompt":
                 prompt_content = prompt_content.replace(
                     "[<insert_emomap_keys>]", self.live2d_model.emo_str
+                ).replace(
+                    # [deskpet] action tags
+                    "[<insert_actmap_keys>]", getattr(self.live2d_model, "act_str", "")
                 )
 
             if prompt_name == "mcp_prompt":

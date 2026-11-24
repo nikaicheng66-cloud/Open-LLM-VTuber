@@ -87,6 +87,15 @@ class TTSFactory:
                 batch_size=kwargs.get("batch_size"),
                 media_type=kwargs.get("media_type"),
                 streaming_mode=kwargs.get("streaming_mode"),
+                # [deskpet] optional tuning
+                aux_ref_audio_paths=kwargs.get("aux_ref_audio_paths"),
+                speed_factor=kwargs.get("speed_factor", 1.0),
+                temperature=kwargs.get("temperature", 1.0),
+                top_k=kwargs.get("top_k", 15),
+                top_p=kwargs.get("top_p", 1.0),
+                repetition_penalty=kwargs.get("repetition_penalty", 1.35),
+                fragment_interval=kwargs.get("fragment_interval", 0.3),
+                seed=kwargs.get("seed", -1),
             )
         elif engine_type == "siliconflow_tts":
             from .siliconflow_tts import SiliconFlowTTS

@@ -6,7 +6,17 @@ class ASRFactory:
     @staticmethod
     def get_asr_system(system_name: str, **kwargs) -> Type[ASRInterface]:
         if system_name == "faster_whisper":
-            from .faster_whisper_asr import VoiceRecognition as FasterWhisperASR
+            try:
+                from .faster_whisper_asr import VoiceRecognition as FasterWhisperASR
+            except ImportError as e:
+                # [deskpet] faster-whisper not installed yet: keep working with SenseVoice
+                import yaml
+                from loguru import logger
+
+                logger.warning(f"[deskpet] faster-whisper unavailable ({e}); using sherpa_onnx_asr")
+                with open("conf.yaml", encoding="utf-8") as f:
+                    sherpa = yaml.safe_load(f)["character_config"]["asr_config"]["sherpa_onnx_asr"]
+                return ASRFactory.get_asr_system("sherpa_onnx_asr", **sherpa)
 
             return FasterWhisperASR(
                 model_path=kwargs.get("model_path"),

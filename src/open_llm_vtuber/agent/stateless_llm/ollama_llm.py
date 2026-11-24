@@ -16,6 +16,9 @@ class OllamaLLM(AsyncLLM):
         keep_alive: float = -1,
         unload_at_exit: bool = True,
     ):
+        # [deskpet] disable thinking for hybrid-reasoning models such as qwen3.5,
+        # so replies start right away instead of after a long "thinking" phase
+        self.reasoning_effort = "none"
         self.keep_alive = keep_alive
         self.unload_at_exit = unload_at_exit
         self.cleaned = False

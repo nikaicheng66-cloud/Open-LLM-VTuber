@@ -105,6 +105,12 @@ class AsyncLLM(StatelessLLMInterface):
                 stream=True,
                 temperature=self.temperature,
                 tools=available_tools,
+                # [deskpet] lets subclasses (e.g. Ollama) turn off model "thinking"
+                **(
+                    {"reasoning_effort": self.reasoning_effort}
+                    if getattr(self, "reasoning_effort", None)
+                    else {}
+                ),
             )
             logger.debug(
                 f"Tool Support: {self.support_tools}, Available tools: {available_tools}"

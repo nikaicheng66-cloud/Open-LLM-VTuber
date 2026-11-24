@@ -106,9 +106,29 @@ def is_complete_sentence(text: str) -> bool:
     return any(text.endswith(punct) for punct in END_PUNCTUATIONS)
 
 
+# [deskpet] Where the first, quick piece of a reply may end: at the earliest comma in the text, or
+# after a finished run of "…" ("嗯……", "才八点多就累了呀……" open many of her sentences, and without
+# this the whole sentence had to be there, and be synthesized, before she made a sound). The run
+# counts only once something follows it, so that "…" + "…" arriving in two pieces is not cut in half.
+_ELLIPSIS_RUN = re.compile(r"…+(?=[^…\s])")
+
+
+def _first_break(text: str) -> int:
+    """Index just after the first place where the first piece may end, or -1."""
+    best = -1
+    for comma in COMMAS:
+        i = text.find(comma)
+        if i != -1 and (best == -1 or i + len(comma) < best):
+            best = i + len(comma)
+    run = _ELLIPSIS_RUN.search(text)
+    if run and (best == -1 or run.end() < best):
+        best = run.end()
+    return best
+
+
 def contains_comma(text: str) -> bool:
     """
-    Check if text contains any comma.
+    Check if text contains any comma (or another place where the first piece may end).
 
     Args:
         text: Text to check
@@ -116,13 +136,14 @@ def contains_comma(text: str) -> bool:
     Returns:
         bool: Whether the text contains a comma
     """
-    return any(comma in text for comma in COMMAS)
+    return _first_break(text) != -1
 
 
 def comma_splitter(text: str) -> Tuple[str, str]:
     """
     Process text and split it at the first comma.
     Returns the split text (including the comma) and the remaining text.
+    ([deskpet] the first one in the text, not the first one of the COMMAS list that occurs in it)
 
     Args:
         text: Text to split
@@ -133,12 +154,10 @@ def comma_splitter(text: str) -> Tuple[str, str]:
     if not text:
         return [], ""
 
-    for comma in COMMAS:
-        if comma in text:
-            split_text = text.split(comma, 1)
-            # Return first part with the comma
-            return split_text[0].strip() + comma, split_text[1].strip()
-    return text, ""
+    cut = _first_break(text)
+    if cut == -1:
+        return text, ""
+    return text[:cut].strip(), text[cut:].strip()
 
 
 def has_punctuation(text: str) -> bool:
