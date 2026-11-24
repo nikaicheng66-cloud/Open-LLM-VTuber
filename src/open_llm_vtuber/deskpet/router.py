@@ -52,7 +52,7 @@ _LOOK = re.compile(r"(看看|看一下|看下|看一眼|瞧瞧|什么意思|啥�
 # --- tiers for the hybrid router ---
 # sure status questions (answered from real state, no model needed)
 _STATUS_SURE = re.compile(r"(还在.{0,8}(做|弄|填|投|帮我)|怎么.{0,4}不说话|没.{0,4}(更新|动静|消息)|在找什么|在查什么|在写什么|怎么没声音|怎么不说话|在弄什么|在做什么|在干什么|在忙什么|在弄啥|在做啥|刚刚在做|刚才在做|刚刚在弄|刚才在弄|做啥任务|什么任务|现在什么情况|什么情况了|进度怎么样|进展怎么样|到哪了|弄好了吗|做好了吗|做完了吗|搞定了吗|好了没|装好了吗|下好了吗)")
-# a status question about some program/thing (not about her own work): "alas现在运行的怎么样", "游戏还在跑吗"
+# a status question about some program/thing (not about her own work): "备份脚本现在运行的怎么样", "游戏还在跑吗"
 _ABOUT_THING = re.compile(r"([a-z]{2,}|运行|跑得|跑的|还在跑|脚本|程序|软件|游戏|服务器|模拟器|下载|网页|那边)")
 # the user calls off what she is doing / says it wasn't a request
 _CANCEL = re.compile(r"(不是让你做|不是叫你|我只是说说|我就随便说|别做了|不用做了|别弄了|不用弄了|停下|停一下|取消|算了|不用了)")
@@ -369,7 +369,7 @@ async def route_local(text: str, pictures: list[str] | None = None, about_pictur
         return random.choice(["我看看。", "嗯，让我看一眼。", "好，我看一下你的屏幕。"])
     if label == "STATUS":
         running = any(x.status == "running" for x in state.tasks)
-        # "alas现在运行的怎么样" asks how a program is doing now, not how her own task list looks:
+        # "备份脚本现在运行的怎么样" asks how a program is doing now, not how her own task list looks:
         # an old task summary is no answer to that, so she goes and looks.
         if _ABOUT_THING.search(t) and not running:
             asyncio.create_task(claude_bridge.ask(job))
